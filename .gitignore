@@ -32,3 +32,8 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# SQLite DB & Uploads
+*.db
+*.db-journal
+uploads/
