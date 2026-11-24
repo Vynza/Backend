@@ -2,6 +2,8 @@ package config
 
 import (
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -14,6 +16,7 @@ type Config struct {
 }
 
 func Load() *Config {
+	_ = godotenv.Load() // Automatically read .env if present
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8085"
