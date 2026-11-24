@@ -6,7 +6,8 @@ import (
 
 type Config struct {
 	Port         string
-	DBPath       string
+	DBDriver     string // "sqlite" or "postgres" (for Supabase)
+	DBUrl        string // Supabase PostgreSQL connection string
 	JWTSecret    string
 	UploadAudio  string
 	UploadCovers string
@@ -17,18 +18,28 @@ func Load() *Config {
 	if port == "" {
 		port = "8085"
 	}
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		jwtSecret = "vynza-super-secret-key-change-in-production-2026"
 	}
-	dbPath := os.Getenv("DB_PATH")
-	if dbPath == "" {
-		dbPath = "vynza.db"
+
+	// Supabase PostgreSQL support:
+	// Example: postgresql://postgres.xxxx:yourpassword@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require
+	dbUrl := os.Getenv("DATABASE_URL")
+	dbDriver := "postgres"
+	if dbUrl == "" {
+		dbDriver = "sqlite"
+		dbUrl = os.Getenv("DB_PATH")
+		if dbUrl == "" {
+			dbUrl = "vynza.db"
+		}
 	}
 
 	return &Config{
 		Port:         port,
-		DBPath:       dbPath,
+		DBDriver:     dbDriver,
+		DBUrl:        dbUrl,
 		JWTSecret:    jwtSecret,
 		UploadAudio:  "uploads/audio",
 		UploadCovers: "uploads/covers",
