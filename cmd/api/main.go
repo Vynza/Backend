@@ -17,7 +17,7 @@ import (
 func main() {
 	cfg := config.Load()
 
-	db, err := repository.NewDB(cfg.DBPath)
+	db, err := repository.NewDB(cfg.DBDriver, cfg.DBUrl)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
