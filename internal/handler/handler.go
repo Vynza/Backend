@@ -14,6 +14,7 @@ import (
 	"vynza-backend/internal/middleware"
 	"vynza-backend/internal/model"
 	"vynza-backend/internal/repository"
+	"vynza-backend/internal/service"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -478,4 +479,107 @@ func (h *Handler) AdminCreateAlbum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sendJSON(w, http.StatusCreated, al)
+}
+
+func (h *Handler) AdminImportArtist(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		sendError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req struct {
+		ArtistName string `json:"artist_name"`
+		Genre      string `json:"genre"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.ArtistName) == "" {
+		sendError(w, http.StatusBadRequest, "artist_name is required")
+		return
+	}
+
+	if req.Genre == "" {
+		req.Genre = "Pop / Rock"
+	}
+
+	dz := service.NewDeezerService()
+	searchRes, err := dz.SearchArtist(req.ArtistName)
+	if err != nil || len(searchRes.Data) == 0 {
+		sendError(w, http.StatusNotFound, "Artist not found on Deezer catalog")
+		return
+	}
+
+	dzArtist := searchRes.Data[0]
+	artist := &model.Artist{
+		Name:     dzArtist.Name,
+		Bio:      "Official catalog imported via Deezer Music API.",
+		ImageURL: dzArtist.PictureBig,
+	}
+	if artist.ImageURL == "" {
+		artist.ImageURL = dzArtist.PictureMedium
+	}
+	if err := h.repo.GetOrCreateArtist(artist); err != nil {
+		sendError(w, http.StatusInternalServerError, "Failed to save artist")
+		return
+	}
+
+	albumsRes, err := dz.GetArtistAlbums(dzArtist.ID)
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, "Failed to fetch artist albums")
+		return
+	}
+
+	importedAlbums := 0
+	importedSongs := 0
+
+	// Import up to 3 albums to keep import fast and responsive
+	limit := 3
+	if len(albumsRes.Data) < limit {
+		limit = len(albumsRes.Data)
+	}
+
+	for i := 0; i < limit; i++ {
+		dzAlbum := albumsRes.Data[i]
+		album := &model.Album{
+			Title:       dzAlbum.Title,
+			ArtistID:    artist.ID,
+			CoverURL:    dzAlbum.CoverBig,
+			ReleaseDate: dzAlbum.ReleaseDate,
+		}
+		if album.CoverURL == "" {
+			album.CoverURL = dzAlbum.CoverMedium
+		}
+		if err := h.repo.GetOrCreateAlbum(album); err != nil {
+			continue
+		}
+		importedAlbums++
+
+		tracksRes, err := dz.GetAlbumTracks(dzAlbum.ID)
+		if err != nil {
+			continue
+		}
+		for _, t := range tracksRes.Data {
+			if t.Preview == "" {
+				continue
+			}
+			albumID := album.ID
+			song := &model.Song{
+				Title:    t.Title,
+				ArtistID: artist.ID,
+				AlbumID:  &albumID,
+				Duration: t.Duration,
+				Genre:    req.Genre,
+				AudioURL: t.Preview,
+				CoverURL: album.CoverURL,
+			}
+			if err := h.repo.CreateSong(song); err == nil {
+				importedSongs++
+			}
+		}
+	}
+
+	sendJSON(w, http.StatusCreated, map[string]interface{}{
+		"message":         "Import completed successfully",
+		"artist":          artist,
+		"imported_albums": importedAlbums,
+		"imported_songs":  importedSongs,
+	})
 }

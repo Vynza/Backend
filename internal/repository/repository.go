@@ -427,6 +427,38 @@ func (db *DB) CreateArtist(a *model.Artist) error {
 	return nil
 }
 
+func (db *DB) GetOrCreateArtist(a *model.Artist) error {
+	var id int64
+	query := "SELECT id FROM artists WHERE name = "
+	if db.Driver == "postgres" {
+		query += "$1"
+	} else {
+		query += "?"
+	}
+	err := db.QueryRow(query, a.Name).Scan(&id)
+	if err == nil {
+		a.ID = id
+		return nil
+	}
+	return db.CreateArtist(a)
+}
+
+func (db *DB) GetOrCreateAlbum(al *model.Album) error {
+	var id int64
+	var query string
+	if db.Driver == "postgres" {
+		query = "SELECT id FROM albums WHERE title = $1 AND artist_id = $2"
+	} else {
+		query = "SELECT id FROM albums WHERE title = ? AND artist_id = ?"
+	}
+	err := db.QueryRow(query, al.Title, al.ArtistID).Scan(&id)
+	if err == nil {
+		al.ID = id
+		return nil
+	}
+	return db.CreateAlbum(al)
+}
+
 // Albums
 func (db *DB) GetAlbums() ([]model.Album, error) {
 	query := `

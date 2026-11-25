@@ -167,6 +167,7 @@ func main() {
 
 	mux.Handle("/api/v1/admin/stats", adminAuth(http.HandlerFunc(h.GetAdminStats)))
 	mux.Handle("/api/v1/admin/users", adminAuth(http.HandlerFunc(h.GetAdminUsers)))
+	mux.Handle("/api/v1/admin/import", adminAuth(http.HandlerFunc(h.AdminImportArtist)))
 
 	mux.Handle("/api/v1/admin/artists", adminAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
